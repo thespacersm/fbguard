@@ -36,6 +36,56 @@ if (!defined('FBGUARD_DIR')) {
     define('FBGUARD_DIR', dirname(__FILE__));
 }
 
+/**
+ * La Transform Rule di Cloudflare antepone EDGE_PREFIX al path per dare agli
+ * scraper una cache key separata al bordo. Va tolto PRIMA DI OGNI ALTRA COSA,
+ * e senza dipendere da nient'altro: se lo togliessimo piu' avanti, spegnere
+ * fbguard (ENABLED=0) o una libreria illeggibile lascerebbero arrivare a
+ * WordPress un path inesistente, e TUTTO il traffico Meta diventerebbe 404.
+ * L'interruttore di emergenza deve riportare il sito com'era, non romperlo.
+ *
+ * Per questo il prefisso viene letto qui con un parser minimo del .env, senza
+ * passare dalla libreria.
+ */
+function fbguard_strip_edge_prefix()
+{
+    $prefix = '/__fbguard';
+    $env    = FBGUARD_DIR . '/.env';
+    if (is_readable($env)) {
+        $lines = @file($env, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if (is_array($lines)) {
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if ($line === '' || $line[0] === '#' || strpos($line, 'EDGE_PREFIX') !== 0) {
+                    continue;
+                }
+                $pos = strpos($line, '=');
+                if ($pos !== false) {
+                    $prefix = trim(substr($line, $pos + 1), " \t\"'");
+                }
+            }
+        }
+    }
+
+    $prefix = rtrim($prefix, '/');
+    if ($prefix === '' || !isset($_SERVER['REQUEST_URI'])
+        || strpos($_SERVER['REQUEST_URI'], $prefix) !== 0) {
+        return false;
+    }
+
+    $rest = substr($_SERVER['REQUEST_URI'], strlen($prefix));
+    if ($rest !== '' && $rest[0] !== '/' && $rest[0] !== '?') {
+        return false; // e' solo un path che inizia per caso allo stesso modo
+    }
+    if ($rest === '' || $rest[0] === '?') {
+        $rest = '/' . $rest;
+    }
+    $_SERVER['REQUEST_URI'] = $rest;
+    return true;
+}
+
+define('FBGUARD_HAD_PREFIX', fbguard_strip_edge_prefix());
+
 // require difensivo: se la libreria manca o non e' leggibile ci facciamo da
 // parte in silenzio. Un fatal qui, con l'include piazzato in wp-config.php,
 // porterebbe giu' anche il backend e non potresti nemmeno entrare a sistemare.
@@ -237,24 +287,7 @@ function fbguard_run()
         return;
     }
 
-    // La Transform Rule di Cloudflare antepone EDGE_PREFIX al path per dare
-    // agli scraper una cache key separata al bordo. Lo togliamo QUI, prima di
-    // qualunque altra cosa e per QUALSIASI esito: cosi' anche le richieste che
-    // lasciamo proseguire (robots.txt, feed, asset, UA non scraper) arrivano a
-    // WordPress con la URL vera, invece di un path inesistente che darebbe 404.
-    $hadPrefix = false;
-    $prefix = rtrim(fbguard_config('EDGE_PREFIX'), '/');
-    if ($prefix !== '' && isset($_SERVER['REQUEST_URI'])
-        && strpos($_SERVER['REQUEST_URI'], $prefix) === 0) {
-        $rest = substr($_SERVER['REQUEST_URI'], strlen($prefix));
-        if ($rest === '' || $rest[0] === '/' || $rest[0] === '?') {
-            if ($rest === '' || $rest[0] === '?') {
-                $rest = '/' . $rest;
-            }
-            $_SERVER['REQUEST_URI'] = $rest;
-            $hadPrefix = true;
-        }
-    }
+    $hadPrefix = FBGUARD_HAD_PREFIX;
 
     $origin = rtrim(fbguard_config('ORIGIN_BASE'), '/');
     if ($origin === '') {
