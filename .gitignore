@@ -1,0 +1,7 @@
+# Configurazione reale: contiene PURGE_KEY e l'origin del sito.
+.env
+
+# Dati generati a runtime.
+cache/
+queue/
+var/

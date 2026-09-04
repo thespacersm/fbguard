@@ -1,0 +1,17 @@
+{
+  "rules": [
+    {
+      "description": "fbguard - spazio URL separato per scraper Meta/Facebook",
+      "expression": "(http.user_agent contains \"meta\" and not http.request.uri.path contains \".\" and not http.request.uri.path contains \"/__fbguard\" and not http.request.uri.path contains \"/wp-admin\" and not http.request.uri.path contains \"/wp-login\" and not http.request.uri.path contains \"/wp-json\" and not http.request.uri.path contains \"/cart\" and not http.request.uri.path contains \"/checkout\" and not http.request.uri.path contains \"/my-account\" and not http.request.uri.path contains \"/feed/\") or (http.user_agent contains \"facebook\" and not http.request.uri.path contains \".\" and not http.request.uri.path contains \"/__fbguard\" and not http.request.uri.path contains \"/wp-admin\" and not http.request.uri.path contains \"/wp-login\" and not http.request.uri.path contains \"/wp-json\" and not http.request.uri.path contains \"/cart\" and not http.request.uri.path contains \"/checkout\" and not http.request.uri.path contains \"/my-account\" and not http.request.uri.path contains \"/feed/\")",
+      "action": "rewrite",
+      "action_parameters": {
+        "uri": {
+          "path": {
+            "expression": "concat(\"/__fbguard\", http.request.uri.path)"
+          }
+        }
+      },
+      "enabled": true
+    }
+  ]
+}
