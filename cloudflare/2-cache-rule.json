@@ -2,7 +2,7 @@
   "rules": [
     {
       "description": "fbguard - cache edge delle risposte per scraper Meta",
-      "expression": "http.request.uri.path contains \"/__fbguard\"",
+      "expression": "(http.request.uri.path contains \"/__fbguard\")",
       "action": "set_cache_settings",
       "action_parameters": {
         "cache": true,
