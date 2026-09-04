@@ -181,6 +181,25 @@ function fbguard_static_exts()
 }
 
 /**
+ * Content-Type per estensione, per i file che serviamo direttamente.
+ */
+function fbguard_mime_for($ext)
+{
+    $map = array(
+        'jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png','gif'=>'image/gif',
+        'webp'=>'image/webp','avif'=>'image/avif','svg'=>'image/svg+xml','ico'=>'image/x-icon',
+        'bmp'=>'image/bmp','css'=>'text/css','js'=>'application/javascript','mjs'=>'application/javascript',
+        'map'=>'application/json','pdf'=>'application/pdf','zip'=>'application/zip',
+        'mp4'=>'video/mp4','webm'=>'video/webm','mp3'=>'audio/mpeg','ogg'=>'audio/ogg',
+        'ttf'=>'font/ttf','otf'=>'font/otf','woff'=>'font/woff','woff2'=>'font/woff2',
+        'eot'=>'application/vnd.ms-fontobject','xml'=>'application/xml','json'=>'application/json',
+        'txt'=>'text/plain','rss'=>'application/rss+xml','atom'=>'application/atom+xml',
+    );
+    $ext = strtolower($ext);
+    return isset($map[$ext]) ? $map[$ext] : 'application/octet-stream';
+}
+
+/**
  * Risorse che devono restare SEMPRE fresche e che quindi non mettiamo mai in
  * cache: robots.txt, sitemap, feed. Le lasciamo generare a WordPress.
  *

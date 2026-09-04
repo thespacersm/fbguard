@@ -174,9 +174,20 @@ export CF_ZONE_ID=...
 ```
 
 L'espressione usa solo `contains` e `not ... contains`, così resta leggibile e
-modificabile dal generatore visuale della dashboard. `not contains "."` tiene
-fuori file, immagini, robots e sitemap: le pagine di contenuto non hanno punti
-nel path.
+modificabile dal generatore visuale della dashboard. Le uniche esclusioni sono
+il prefisso stesso (per non riscrivere due volte) e le estensioni che devono
+restare intatte: `.xml`, `.txt`, `.jpeg`, `.jpg`, `.webp`, `.png`, `.gif`.
+
+Non serve elencare **tutte** le estensioni al bordo: se una richiesta arriva
+col prefisso e punta a un file che esiste davvero nel webroot, fbguard lo serve
+lui dal disco (`X-FBGuard: FILE`), con il Content-Type giusto e il path
+validato contro il traversal. Senza questo, pdf, css, js, font e video
+finirebbero a WordPress — che sui file statici risponde 404.
+
+I percorsi sensibili non hanno bisogno di essere esclusi al bordo: ci pensa
+`EXCLUDE_PATHS` all'origin, che risponde 403 senza far partire WordPress.
+Controlla che contenga gli slug veri del tuo sito — su un WooCommerce italiano
+il carrello sta spesso a `/carrello/`, non a `/cart/`.
 
 > ⚠️ Con la cache al bordo il purge diventa a due livelli: `?fbguard_purge=`
 > svuota il disco, ma serve anche un purge Cloudflare per quella URL

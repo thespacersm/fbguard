@@ -45,6 +45,41 @@ if (!is_readable(FBGUARD_DIR . '/fbguard-lib.php')) {
 require_once FBGUARD_DIR . '/fbguard-lib.php';
 
 /**
+ * Serve un file statico che esiste davvero nel webroot, e termina.
+ * Se non esiste (o e' fuori dal webroot) non fa nulla e si prosegue.
+ */
+function fbguard_try_local_file($path, $ext)
+{
+    $root = isset($_SERVER['DOCUMENT_ROOT']) && $_SERVER['DOCUMENT_ROOT'] !== ''
+        ? $_SERVER['DOCUMENT_ROOT']
+        : dirname(FBGUARD_DIR);
+    $root = realpath($root);
+    if ($root === false) {
+        return;
+    }
+
+    $file = realpath($root . '/' . ltrim(rawurldecode($path), '/'));
+    // Deve stare dentro il webroot: niente traversal.
+    if ($file === false || strpos($file, $root . DIRECTORY_SEPARATOR) !== 0 || !is_file($file)) {
+        return;
+    }
+
+    $mime = fbguard_mime_for($ext);
+    while (ob_get_level() > 0) {
+        @ob_end_clean();
+    }
+    if (!headers_sent()) {
+        http_response_code(200);
+        header('Content-Type: ' . $mime);
+        header('Content-Length: ' . filesize($file));
+        header('X-FBGuard: FILE');
+        header('Cache-Control: public, max-age=86400');
+    }
+    readfile($file);
+    exit;
+}
+
+/**
  * Emette una voce di cache e termina il processo.
  */
 function fbguard_serve($hit, $method)
@@ -207,6 +242,7 @@ function fbguard_run()
     // qualunque altra cosa e per QUALSIASI esito: cosi' anche le richieste che
     // lasciamo proseguire (robots.txt, feed, asset, UA non scraper) arrivano a
     // WordPress con la URL vera, invece di un path inesistente che darebbe 404.
+    $hadPrefix = false;
     $prefix = rtrim(fbguard_config('EDGE_PREFIX'), '/');
     if ($prefix !== '' && isset($_SERVER['REQUEST_URI'])
         && strpos($_SERVER['REQUEST_URI'], $prefix) === 0) {
@@ -216,6 +252,7 @@ function fbguard_run()
                 $rest = '/' . $rest;
             }
             $_SERVER['REQUEST_URI'] = $rest;
+            $hadPrefix = true;
         }
     }
 
@@ -258,7 +295,19 @@ function fbguard_run()
     // Asset statici: li serve Apache direttamente (esistono su disco) e sono
     // in whitelist su Cloudflare. Non li mettiamo in cache e non li tocchiamo.
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-    if ($ext !== '' && in_array($ext, fbguard_static_exts(), true)) {
+    $isStatic = ($ext !== '' && in_array($ext, fbguard_static_exts(), true));
+
+    // Se la richiesta e' arrivata col prefisso di Cloudflare e punta a un file
+    // vero, il webserver non l'ha trovato (cercava <prefisso>/file) e ci ha
+    // girato la richiesta. Serviamo noi il file, altrimenti WordPress
+    // risponderebbe 404 su un asset che esiste.
+    // Cosi' la Transform Rule resta valida per QUALSIASI estensione, senza
+    // doverle elencare tutte al bordo.
+    if ($hadPrefix && $ext !== '') {
+        fbguard_try_local_file($path, $ext); // esce se il file c'e'
+    }
+
+    if ($isStatic) {
         return;
     }
 
