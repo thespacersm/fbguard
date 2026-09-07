@@ -11,6 +11,9 @@
  *     php fbguard-cron.php            processa la coda
  *     php fbguard-cron.php -v         idem, con output
  *     php fbguard-cron.php --stats    stato di cache e coda, non processa
+ *     php fbguard-cron.php --purge-noqueue [--dry-run]
+ *                                     rimuove dalla cache le voci che
+ *                                     ricadono in NOQUEUE_PATHS
  *
  * Compatibile PHP 5.6+.
  */
@@ -26,6 +29,8 @@ require_once FBGUARD_DIR . '/fbguard-lib.php';
 $argv    = isset($argv) ? $argv : array();
 $verbose = in_array('-v', $argv, true) || in_array('--verbose', $argv, true);
 $stats   = in_array('--stats', $argv, true);
+$purgeNq = in_array('--purge-noqueue', $argv, true);
+$dryRun  = in_array('--dry-run', $argv, true);
 
 function fbguard_out($msg)
 {
@@ -103,6 +108,55 @@ if ($stats) {
 }
 
 /* ---------------------------------------------------------------- *
+ * --purge-noqueue: rimuove dalla cache le voci che ricadono in
+ * NOQUEUE_PATHS. Serve a recuperare lo spazio gia' occupato dopo aver
+ * introdotto l'esclusione: da li' in poi non ne entrano di nuove, ma quelle
+ * accumulate prima restano finche' non le si toglie.
+ * ---------------------------------------------------------------- */
+
+if ($purgeNq) {
+    $needles = fbguard_cfg_list('NOQUEUE_PATHS');
+    if (!$needles) {
+        fwrite(STDERR, "fbguard-cron: NOQUEUE_PATHS non e' configurato nel .env\n");
+        exit(1);
+    }
+    echo "NOQUEUE_PATHS: " . implode(', ', $needles) . "\n";
+    echo $dryRun ? "modalita' DRY-RUN: non cancello nulla\n\n" : "\n";
+
+    $n = 0; $bytes = 0; $tot = 0;
+    foreach (glob(fbguard_path('cache') . '/*.cache') as $file) {
+        $tot++;
+        $fh = @fopen($file, 'r');
+        if ($fh === false) {
+            continue;
+        }
+        $line = fgets($fh);
+        fclose($fh);
+        $meta = json_decode(trim((string) $line), true);
+        if (!is_array($meta) || !isset($meta['url'])) {
+            continue;
+        }
+        $path = parse_url($meta['url'], PHP_URL_PATH);
+        if ($path === false || $path === null || !fbguard_path_noqueue($path)) {
+            continue;
+        }
+        $size = @filesize($file);
+        if ($n < 5) {
+            echo "  " . ($dryRun ? "[dry] " : "") . substr($meta['url'], 0, 100) . "\n";
+        } elseif ($n === 5) {
+            echo "  ...\n";
+        }
+        if ($dryRun || @unlink($file)) {
+            $n++;
+            $bytes += ($size !== false ? $size : 0);
+        }
+    }
+    printf("\n%s %d voci su %d (%s)\n",
+        $dryRun ? "Da rimuovere:" : "Rimosse:", $n, $tot, fbguard_human($bytes));
+    exit(0);
+}
+
+/* ---------------------------------------------------------------- *
  * Lock: un solo worker alla volta, altrimenti due giri sovrapposti
  * rifanno le stesse chiamate all'origin.
  * ---------------------------------------------------------------- */
@@ -158,7 +212,7 @@ $sleepMs = fbguard_cfg_int('SLEEP_MS');
 
 fbguard_out('job in coda: ' . count($jobs) . ', ne processo al massimo ' . $maxPerRun);
 
-$done = array('ok' => 0, 'error' => 0, 'skipped' => 0, 'retry' => 0, 'invalid' => 0);
+$done = array('ok' => 0, 'error' => 0, 'skipped' => 0, 'retry' => 0, 'invalid' => 0, 'noqueue' => 0);
 $n    = 0;
 
 foreach ($jobs as $file => $mtime) {
@@ -184,6 +238,16 @@ foreach ($jobs as $file => $mtime) {
         @unlink($file);
         $done['invalid']++;
         fbguard_out('  SCARTO job non valido: ' . basename($file));
+        continue;
+    }
+
+    // L'esclusione puo' essere stata introdotta dopo l'accodamento: in quel
+    // caso il job va buttato, non eseguito.
+    $jobPath = parse_url($url, PHP_URL_PATH);
+    if ($jobPath !== false && $jobPath !== null && fbguard_path_noqueue($jobPath)) {
+        @unlink($file);
+        $done['noqueue']++;
+        fbguard_out('  SCARTO (NOQUEUE_PATHS) ' . $url);
         continue;
     }
 
@@ -258,8 +322,8 @@ foreach ($jobs as $file => $mtime) {
 }
 
 fbguard_out(sprintf(
-    'fatto: %d ok, %d errori, %d saltati, %d da riprovare, %d non validi',
-    $done['ok'], $done['error'], $done['skipped'], $done['retry'], $done['invalid']
+    'fatto: %d ok, %d errori, %d saltati, %d da riprovare, %d non validi, %d esclusi',
+    $done['ok'], $done['error'], $done['skipped'], $done['retry'], $done['invalid'], $done['noqueue']
 ));
 
 flock($lock, LOCK_UN);

@@ -26,6 +26,7 @@ function fbguard_defaults()
         'ORIGIN_BASE'     => '',
         'ORIGIN_RESOLVE'  => '',
         'UA_MATCH'        => 'facebookexternalhit,meta-externalagent,meta-externalfetcher,facebookcatalog,facebookbot',
+        'NOQUEUE_PATHS'   => '',
         'EXCLUDE_PATHS'   => '/wp-admin,/wp-login.php,/wp-json,/wp-cron.php,/xmlrpc.php,/cart,/checkout,/my-account,/order-received,/lost-password',
         'TTL'             => '2592000',
         'TTL_ERROR'       => '3600',
@@ -285,6 +286,32 @@ function fbguard_is_scraper($ua)
     }
     foreach (fbguard_cfg_list('UA_MATCH') as $needle) {
         if (strpos($ua, strtolower($needle)) !== false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * URL che fbguard continua a gestire (WordPress non parte mai) ma che non
+ * devono MAI finire in coda: niente fetch dal cron, niente voce di cache
+ * nuova, niente refresh di una voce scaduta.
+ *
+ * Serve per gli spazi URL combinatori — le pagine filtro tipo
+ * /brand/x/categorie-a-or-b-or-c/ — che nessuno pubblicizza ma che uno
+ * scraper esplora una combinazione alla volta, riempiendo il disco.
+ *
+ * Il confronto e' per sottostringa, case-insensitive.
+ */
+function fbguard_path_noqueue($path)
+{
+    $needles = fbguard_cfg_list('NOQUEUE_PATHS');
+    if (!$needles) {
+        return false;
+    }
+    $lower = strtolower($path);
+    foreach ($needles as $needle) {
+        if (strpos($lower, strtolower($needle)) !== false) {
             return true;
         }
     }

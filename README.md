@@ -140,6 +140,31 @@ congelato alla scrittura). Le voci che contano:
   al minuto accetti di generare per gli scraper.
 - **`MAX_QUEUE`** — tetto ai job, così un flood di URL casuali non riempie il
   disco.
+- **`NOQUEUE_PATHS`** — URL che fbguard continua a gestire (WordPress non parte
+  mai) ma che non finiscono **mai** in coda: niente fetch, niente voce nuova,
+  nessun refresh. Chi le chiede riceve `MISS_STATUS`. Confronto per
+  sottostringa sul path, case-insensitive.
+
+  Serve per gli **spazi URL combinatori**. Su un WooCommerce con un plugin di
+  filtri, URL come `/brand/x/categorie-a-or-b-or-c/` sono di fatto infinite:
+  nessuno ci fa campagne, ma uno scraper le esplora una combinazione alla volta
+  e la cache cresce senza limite. Misurato su un sito reale: in tre giorni
+  **13.890 voci su 14.279 (97%) e 1,2 GB su 1,23** erano pagine filtro, contro
+  286 prodotti e 31 brand. Al ritmo di 550 MB al giorno.
+
+  Attenzione: la cache **non ha scadenza attiva**. Una voce scaduta viene
+  rigenerata solo se qualcuno la richiede; se lo scraper non ci torna più resta
+  su disco per sempre. Il TTL da solo non libera nulla.
+
+  Le voci accumulate prima dell'esclusione vanno tolte a mano:
+
+  ```bash
+  php fbguard-cron.php --purge-noqueue --dry-run   # mostra cosa toglierebbe
+  php fbguard-cron.php --purge-noqueue             # toglie davvero
+  ```
+
+  Verifica sempre il pattern contro le URL vere prima di attivarlo (le sitemap
+  vanno benissimo): deve colpire zero pagine legittime.
 - **`ORIGIN_RESOLVE`** — mettici `127.0.0.1` per far scaricare il worker in
   loopback invece di uscire e rientrare da Cloudflare. Il certificato resta
   valido, l'SNI usa comunque l'hostname.

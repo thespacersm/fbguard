@@ -258,11 +258,13 @@ function fbguard_handle_purge($origin)
         $url     = $origin . $path;
         $key     = fbguard_key($url);
         $removed = fbguard_cache_purge($key);
-        $queued  = fbguard_enqueue($key, $url);
+        $noqueue = fbguard_path_noqueue($path);
+        $queued  = $noqueue ? false : fbguard_enqueue($key, $url);
 
         $lines[] = 'fbguard: purge ' . $url;
         $lines[] = 'cache rimossa: ' . ($removed ? 'si' : 'nessuna voce presente');
-        $lines[] = 'rifetch: ' . ($queued ? 'accodato' : 'NON accodato (coda piena)');
+        $lines[] = 'rifetch: ' . ($noqueue ? 'NON accodato (URL in NOQUEUE_PATHS)'
+            : ($queued ? 'accodato' : 'NON accodato (coda piena)'));
     }
 
     fbguard_log('PURGE ' . implode(' | ', $lines));
@@ -368,12 +370,23 @@ function fbguard_run()
     $url = $origin . $path;
     $key = fbguard_key($url);
 
+    // URL escluse dalla coda: le gestiamo comunque noi (WordPress non parte),
+    // ma non le facciamo mai scaricare al cron.
+    $noqueue = fbguard_path_noqueue($path);
+
     $hit = fbguard_cache_read($key);
     if ($hit !== false) {
-        if ($hit['expired']) {
+        // Una voce gia' presente la serviamo comunque: buttarla via non
+        // gioverebbe a nessuno. Semplicemente non ne accodiamo il refresh.
+        if ($hit['expired'] && !$noqueue) {
             fbguard_enqueue($key, $url); // stale-while-revalidate
         }
         fbguard_serve($hit, $method);
+    }
+
+    if ($noqueue) {
+        fbguard_log('NOQUEUE ' . $url);
+        fbguard_send_status(fbguard_cfg_int('MISS_STATUS'), 'fbguard: risorsa non gestita');
     }
 
     // Miss: in coda ed esci. Nessuna chiamata all'origin da qui.
