@@ -29,6 +29,7 @@ function fbguard_defaults()
         'EXCLUDE_PATHS'   => '/wp-admin,/wp-login.php,/wp-json,/wp-cron.php,/xmlrpc.php,/cart,/checkout,/my-account,/order-received,/lost-password',
         'TTL'             => '2592000',
         'TTL_ERROR'       => '3600',
+        'STALE_MAX_AGE'   => '60',
         'MISS_STATUS'     => '503',
         'RETRY_AFTER'     => '120',
         'MAX_QUEUE'       => '5000',

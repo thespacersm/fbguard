@@ -237,6 +237,11 @@ giorni anche dopo che il redirect è cambiato. Le risposte 5xx escono con
   del risparmio.
 - Se una pagina risulta scaduta viene servita lo stesso **subito**, e il
   refresh viene accodato (stale-while-revalidate): lo scraper non aspetta mai.
+  Nella finestra di rigenerazione la risposta esce con
+  `Cache-Control: max-age=<STALE_MAX_AGE>` (default 60s) invece di `max-age=0`,
+  così Cloudflare continua a fare da scudo mentre il cron lavora: senza,
+  ogni richiesta su una voce scaduta arriverebbe fino all'origin finché il
+  cron non passa.
 - `LOG=1` scrive in `var/fbguard.log`, con rotazione a `LOG_MAX_BYTES`.
 - Se qualcosa va storto: `ENABLED=0` nel `.env` e il sito torna esattamente
   com'era, senza toccare codice.

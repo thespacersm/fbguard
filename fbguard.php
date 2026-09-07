@@ -137,9 +137,18 @@ function fbguard_serve($hit, $method)
     $body = $hit['body'];
     $enc  = $hit['enc'];
 
+    // Quanto puo' tenersela una cache condivisa (Cloudflare, in pratica).
+    // Su una voce scaduta il residuo sarebbe zero, e il bordo smetterebbe di
+    // fare da scudo proprio mentre aspettiamo che il cron rigeneri: nel
+    // frattempo ogni richiesta arriverebbe fin qui. Dichiariamo invece una
+    // finestra breve ma positiva, giusto per assorbire la raffica.
     $remaining = $hit['ttl'] - $hit['age'];
     if ($remaining < 0) {
         $remaining = 0;
+    }
+    if ($hit['expired']) {
+        $stale = fbguard_cfg_int('STALE_MAX_AGE');
+        $remaining = $stale > 0 ? $stale : 0;
     }
 
     // Se il body e' gzippato lo passiamo com'e' quando il client accetta gzip
