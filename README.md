@@ -138,6 +138,18 @@ congelato alla scrittura). Le voci che contano:
   con la lista di default gli utenti veri passano sempre da WordPress.
 - **`SLEEP_MS`** e **`MAX_PER_RUN`** — la manopola del carico: quante pagine
   al minuto accetti di generare per gli scraper.
+- **`MISS_STATUS`** — cosa rispondere quando la pagina non e' ancora in cache.
+  Default **429** + `Retry-After`. Il 503 sarebbe il codice da manuale, ma
+  significa "server saturo": mandarlo con il server in salute e' scorretto, e
+  su un parco di siti monitorati fa aprire ticket di *service unavailable* a
+  raffica. Il 429 e' un 4xx, non tocca gli alert di disponibilita', ed e'
+  semanticamente onesto — lo scraper chiede piu' in fretta di quanto serviamo
+  e gli diciamo di rallentare.
+
+  Vincoli da rispettare se lo cambiate: **mai un 2xx** (202, 204), perche' Meta
+  interpreterebbe il corpo vuoto come il contenuto della pagina e si terrebbe
+  un'anteprima vuota per settimane; **mai 404 o 410**, che farebbero sparire la
+  URL proprio mentre sta per diventare disponibile.
 - **`MAX_QUEUE`** — tetto ai job, così un flood di URL casuali non riempie il
   disco.
 - **`NOQUEUE_PATHS`** — URL che fbguard continua a gestire (WordPress non parte
@@ -230,7 +242,7 @@ fbguard resta fedele a quello che risponde l'origin:
 | 404 / 410 | lo stesso 404, con la pagina 404 del sito | `TTL_ERROR` |
 | 429 / 408 | niente: riprova (sono transitori) | — |
 | 5xx / timeout | riprova fino a `MAX_TRIES`, poi 502 | `TTL_ERROR`, `no-store` |
-| non ancora in cache | `503` + `Retry-After` | `no-store` |
+| non ancora in cache | `MISS_STATUS` + `Retry-After` (default `429`) | `no-store` |
 
 I redirect **non vengono seguiti**: seguirli significherebbe servire il
 contenuto della destinazione sotto la URL di partenza, e tenerlo in cache per

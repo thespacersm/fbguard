@@ -31,7 +31,7 @@ function fbguard_defaults()
         'TTL'             => '2592000',
         'TTL_ERROR'       => '3600',
         'STALE_MAX_AGE'   => '60',
-        'MISS_STATUS'     => '503',
+        'MISS_STATUS'     => '429',
         'RETRY_AFTER'     => '120',
         'MAX_QUEUE'       => '5000',
         'MAX_PER_RUN'     => '40',

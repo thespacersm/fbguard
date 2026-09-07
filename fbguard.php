@@ -228,7 +228,10 @@ function fbguard_send_status($status, $message)
         header('Content-Type: text/plain; charset=UTF-8');
         header('X-FBGuard: MISS');
         header('Cache-Control: no-store');
-        if ($status === 503) {
+        // Retry-After e' definito sia per il 503 che per il 429 (RFC 6585):
+        // e' il segnale con cui diciamo allo scraper quando ripassare, ed e'
+        // il motivo per cui questi codici non fanno sparire la URL.
+        if ($status === 503 || $status === 429) {
             $retry = fbguard_cfg_int('RETRY_AFTER');
             header('Retry-After: ' . ($retry > 0 ? $retry : 60));
         }
