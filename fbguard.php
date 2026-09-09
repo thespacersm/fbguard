@@ -344,13 +344,19 @@ function fbguard_run()
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
     $isStatic = ($ext !== '' && in_array($ext, fbguard_static_exts(), true));
 
-    // Se la richiesta e' arrivata col prefisso di Cloudflare e punta a un file
-    // vero, il webserver non l'ha trovato (cercava <prefisso>/file) e ci ha
-    // girato la richiesta. Serviamo noi il file, altrimenti WordPress
+    // Se la richiesta e' arrivata col prefisso di Cloudflare e punta a un
+    // ASSET vero, il webserver non l'ha trovato (cercava <prefisso>/file) e ci
+    // ha girato la richiesta. Serviamo noi il file, altrimenti WordPress
     // risponderebbe 404 su un asset che esiste.
-    // Cosi' la Transform Rule resta valida per QUALSIASI estensione, senza
-    // doverle elencare tutte al bordo.
-    if ($hadPrefix && $ext !== '') {
+    //
+    // Solo $isStatic, MAI su qualsiasi estensione: fbguard_try_local_file()
+    // fa readfile() del file cosi' com'e', quindi un .php verrebbe servito
+    // come sorgente invece che eseguito. Con la condizione larga
+    // <prefisso>/wp-config.php restituiva le credenziali del database, e
+    // <prefisso>/fbguard/.env la chiave di purge, a chiunque: il prefisso
+    // passa dal bordo senza riscrittura se e' gia' nel path, quindi non
+    // serviva nemmeno uno user agent Meta.
+    if ($hadPrefix && $isStatic) {
         fbguard_try_local_file($path, $ext); // esce se il file c'e'
     }
 
