@@ -5,3 +5,6 @@
 cache/
 queue/
 var/
+
+# backup dei ruleset Cloudflare salvati da applica.sh / rollback.sh
+cloudflare/cf-backup-*.json
