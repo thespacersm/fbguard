@@ -207,8 +207,22 @@ Le regole pronte stanno in `cloudflare/`:
 ```bash
 export CF_API_TOKEN=...    # permessi: Transform Rules Edit + Cache Rules Edit
 export CF_ZONE_ID=...
-./cloudflare/applica.sh    # applica    ./cloudflare/rollback.sh   annulla
+./cloudflare/applica.sh --dry-run   # mostra cosa cambierebbe, senza scrivere
+./cloudflare/applica.sh             # applica
+./cloudflare/rollback.sh            # toglie le regole fbguard
 ```
+
+**Le regole che hai gia' sulla zona non vengono toccate.** L'API Cloudflare non
+sa aggiungere una singola regola a un entrypoint: si fa PUT dell'intero
+ruleset. Gli script quindi leggono lo stato attuale, inseriscono (o aggiornano)
+la sola regola fbguard e riscrivono tutto, salvando prima una copia del ruleset
+in `cloudflare/cf-backup-*.json`. `rollback.sh` toglie solo le regole fbguard e
+lascia il resto dov'e'. Rilanciare `applica.sh` e' idempotente.
+
+La regola di cache viene messa **in fondo** di proposito: nella fase cache
+l'ultima regola che matcha ha la meglio, e su un sito che ha gia' una regola
+larga tipo "metti in cache tutto il GET" quella imporrebbe il suo `edge_ttl`
+anche alle risposte per gli scraper, schiacciando lo stale-while-revalidate.
 
 L'espressione usa solo `contains` e `not ... contains`, così resta leggibile e
 modificabile dal generatore visuale della dashboard. Le uniche esclusioni sono

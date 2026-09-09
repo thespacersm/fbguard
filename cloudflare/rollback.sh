@@ -1,9 +1,18 @@
 #!/bin/bash
-# Rimuove le due regole (svuota gli entrypoint delle due fasi).
-ZONE="${CF_ZONE_ID:?serve CF_ZONE_ID (id della zona Cloudflare)}"
+# Toglie le due regole fbguard dalla zona.
+#
+# Toglie SOLO le regole fbguard: tutto il resto della fase resta dov'e'.
+# (La versione precedente faceva PUT di una lista vuota e svuotava gli
+# entrypoint, portandosi via anche le regole di cache del sito.)
+#
+# Richiede: CF_API_TOKEN, CF_ZONE_ID
+#
+#   ./rollback.sh              toglie (chiede conferma se il terminale e' interattivo)
+#   ./rollback.sh --dry-run    mostra cosa toglierebbe, senza scrivere
+#   ./rollback.sh --yes        senza conferma
+set -euo pipefail
+D="$(cd "$(dirname "$0")" && pwd)"
 for PHASE in http_request_transform http_request_cache_settings; do
-  echo "── svuoto $PHASE"
-  curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE/rulesets/phases/$PHASE/entrypoint" \
-    -H "Authorization: Bearer $CF_API_TOKEN" -H 'Content-Type: application/json' \
-    --data '{"rules":[]}' | python3 -c 'import json,sys; d=json.load(sys.stdin); print("  OK" if d.get("success") else d.get("errors"))'
+  echo "── $PHASE"
+  python3 "$D/cf-rules.py" remove "$PHASE" --backup-dir "$D" "$@"
 done
