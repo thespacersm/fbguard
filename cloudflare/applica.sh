@@ -15,7 +15,9 @@
 #   ./applica.sh --yes        senza conferma, per gli script
 set -euo pipefail
 D="$(cd "$(dirname "$0")" && pwd)"
-for spec in "http_request_transform:1-transform-rule.json" "http_request_cache_settings:2-cache-rule.json"; do
+# La regola di cache (2-cache-rule.json) e' disattivata: rinominata in
+# 2-cache-rule.json.old e rimossa dal ciclo qui sotto.
+for spec in "http_request_transform:1-transform-rule.json"; do
   echo "── ${spec%%:*}"
   python3 "$D/cf-rules.py" apply "${spec%%:*}" "$D/${spec##*:}" --backup-dir "$D" "$@"
 done
